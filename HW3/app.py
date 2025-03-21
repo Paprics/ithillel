@@ -1,25 +1,32 @@
 from flask import Flask, render_template_string, request
 from faker import Faker
-from jinja2 import escape
 import csv
 import requests as rqvsts
 from http import HTTPStatus
+from webargs import fields, validate
+from webargs.flaskparser import use_args
 
 app = Flask(__name__)
 faker = Faker()
 
+# dictionary validate parameters
+user_args = {
+    'quality': fields.Int(validate=validate.Range(min=1, max=1000), load_default=1),
+    'currency': fields.Str(validate=validate.Length(min=3), load_default='USD'),
+    'convert': fields.Int(validate=validate.Range(min=1), load_default=1)
+}
+
+
 @app.route('/generate_students')
-def generate_students():
+@use_args(user_args, location='query')  # accepts validated parameters dictionary, location
+def generate_students(args):
 
     # http://127.0.0.1:5000/generate_students?quality=100
 
     list_students = []
 
-
-    quality_students = min(int(request.args.get('quality', '1')), 1000)
-
     # Generate list of students
-    for _ in range(int(quality_students)):
+    for _ in range(int(args['quality'])):
         first_name = faker.first_name()
         last_name = faker.last_name()
         email = faker.email(domain='gmail.com')
@@ -28,8 +35,6 @@ def generate_students():
         student = [first_name, last_name, email, password, birthday]
         list_students.append(student)
 
-    # pprint(list_students)
-
     # Save list of students to CSV file
     with open('students.csv', 'w', newline='') as file:
         headers = ['first_name', 'last_name', 'email', 'password', 'birthday']
@@ -37,43 +42,46 @@ def generate_students():
         writer.writerow(headers)
         writer.writerows(list_students)
 
-    template = escape('''<h3>List of students:</h3>
+    template = '''<h3>List of {{ students | length }} students:</h3>
         <ol>
             {% for student in students %}
                 <li>{{ student | join(' ') }}</li>
             {% endfor %}
         </ol>
-        ''')
+        '''
 
     return render_template_string(template, students=list_students)
 
 
 @app.route('/bitcoin_rate')
-def get_bitcoin_value():
+@use_args(user_args, location='query')
+def bitcoin_rate(args):
 
     # http://127.0.0.1:5000/bitcoin_rate?currency=UAH&convert=100
 
-    currency = request.args.get('currency', 'USD')
-    convert = request.args.get('convert', '1')
+    currency = args['currency']
+    convert = args['convert']
 
-    url = "https://bitpay.com/api/rates"
+    url = f"https://bitpay.com/rates/BTC/{currency}"
     response = rqvsts.get(url)
 
     if response.status_code != HTTPStatus.OK:
         return '<h1>Ошибка запроса!</h1>'
 
-    # print(response.json())
+    rate = response.json()['data']['rate']
+    name = response.json()['data']['name']
 
-    for crns in response.json():
-        if crns['code'] == currency:
-            rate = float(crns.get("rate", 0))
-            amount = float(convert)
-            result = amount / rate
+    return (f"<h1>Обменять - {convert} {name} на Bitcoin</h1><br>"
+            f"<h2>Курс - {rate} {currency}</h2><br>"
+            f"<h2>Вы получите - {convert / rate:.8f}  BTC</h2>")
 
-            return (f'<h1>Обменять - {amount} {currency} на Bitcoin</h1><br>'
-                    f'<h2>Курс - {rate} {currency}</h2><br>'
-                    f'<h2>Вы получите - {result:.8f} BTC</h2>')
 
+@app.route('/')
+def home_page():
+    return """
+        <h1><a href="http://127.0.0.1:5000/generate_students?quality=100" target="_blank">Сгенерировать студентов</a><br>
+        <a href="http://127.0.0.1:5000/bitcoin_rate?currency=UAH&convert=100" target="_blank">Обмен валют</a></h1>
+    """
 
 
 if __name__ == '__main__':
