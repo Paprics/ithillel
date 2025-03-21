@@ -6,25 +6,33 @@ app = Flask(__name__)
 
 
 @app.route('/generate_password')
-def generate_password(length=20):
+def generate_password():
+
+    # http://127.0.0.1:5000/generate_password
+
     characters = string.ascii_letters + string.digits + string.punctuation
+
+    length = random.randint(10, 20)
 
     while True:
         password = ''.join(random.choice(characters) for _ in range(length))
 
-        # Используем all() для проверки всех условий
+
         if all([
-            len(password) == length,  # Проверка длины пароля
-            any(c.islower() for c in password),  # Наличие хотя бы одной строчной буквы
-            any(c.isupper() for c in password),  # Наличие хотя бы одной заглавной буквы
-            any(c.isdigit() for c in password),  # Наличие хотя бы одной цифры
-            any(c in string.punctuation for c in password)  # Наличие хотя бы одного знака препинания
+            len(password) == length,
+            any(c.islower() for c in password),
+            any(c.isupper() for c in password),
+            any(c.isdigit() for c in password),
+            any(c in string.punctuation for c in password)
         ]):
-            return f'<h1>{password}</h1>'
+            return f'<h1>Password - {password}</h1>'
 
 
 @app.route('/calculate_average')
 def calculate_average():
+
+    # http://127.0.0.1:5000/calculate_average
+
     with open('hw.csv', encoding='utf-8') as f:
         file = f.readlines()
         file = file[1:]
