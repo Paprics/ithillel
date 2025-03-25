@@ -1,7 +1,7 @@
 from flask import Flask
 from webargs import fields, validate
 from webargs.flaskparser import use_kwargs
-from execute_query import execute_query
+from database_handler import execute_query
 
 app = Flask(__name__)
 
@@ -9,47 +9,37 @@ app = Flask(__name__)
 @use_kwargs({'country': fields.Str(validate=validate.Length(min=3), load_default=None)},
             location='query')
 def order_price(country):
-    # http://127.0.0.1:5000/order_price?country=USA
-    # http://127.0.0.1:5000/order_price
-
     if country:
-        query = f'''SELECT customers.Country, SUM(invoices.Total) AS TotalSales
-                            FROM customers
-                            JOIN invoices ON customers.CustomerId = invoices.CustomerId
-                            WHERE  customers.Country = "{country}";'''
-
+        query = '''SELECT BillingCountry, SUM(Total) AS Suma, COUNT(*) AS Quality
+                    FROM invoices
+                    WHERE BillingCountry = ?
+                    GROUP BY BillingCountry;'''
+        return execute_query(query, (country,))
     else:
-        query = f'''SELECT customers.Country, SUM(invoices.Total) AS Total
-                            FROM customers
-                            JOIN invoices ON customers.CustomerId = invoices.CustomerId
-                            GROUP BY customers.Country
-                            ORDER BY customers.Country;'''
+        query = '''SELECT BillingCountry, SUM(Total) AS Suma, COUNT(*) AS Quality
+                    FROM invoices
+                    GROUP BY BillingCountry;'''
+        return execute_query(query)
 
-    return execute_query(query=query)
 
 
 @app.route('/info_about_track')
 @use_kwargs({'trackid': fields.Int(validate=validate.Range(min=1, max=3503), load_default=1)},
             location='query')
 def info_about_track(trackid):
-    # http://127.0.0.1:5000/info_about_track
-    # http://127.0.0.1:5000/info_about_track?trackid=3000
 
-    query = f'''SELECT tracks.Name AS Track_name, 
-       albums.Title AS Album, 
-       artists.Name AS Artist, 
-       genres.Name AS Genre,
-       (tracks.Milliseconds / 1000) AS "Duration sec", 
-       tracks.UnitPrice AS Price
-        FROM tracks
-        INNER JOIN albums ON tracks.AlbumId = albums.AlbumId
-        INNER JOIN artists ON artists.ArtistId = albums.ArtistId
-        INNER JOIN genres ON genres.GenreId = tracks.GenreId
-        INNER JOIN playlist_track ON playlist_track.TrackId = tracks.TrackId
-        INNER JOIN playlists ON playlists.PlaylistId = playlist_track.PlaylistId
-        WHERE tracks.TrackId = {trackid};'''
+    query = '''SELECT 
+            tracks.TrackId, tracks.Name, tracks.Composer, tracks.Milliseconds, tracks.Bytes, tracks.UnitPrice,
+            albums.Title, genres.Name, media_types.Name,
+            artists.Name
+            FROM tracks
+            JOIN albums ON tracks.AlbumId = albums.AlbumId
+            JOIN genres ON tracks.GenreId = genres.GenreId
+            JOIN media_types ON tracks.MediaTypeId = media_types.MediaTypeId
+            JOIN artists ON albums.ArtistId = artists.ArtistId
+            WHERE tracks.TrackId = ?;'''
 
-    return execute_query(query)
+    return execute_query(query, (trackid,))
 
 @app.route('/sound_time')
 def get_all_sound_time():
