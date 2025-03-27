@@ -1,7 +1,7 @@
 from flask import Flask, render_template_string
 from webargs import fields
 from webargs.flaskparser import use_kwargs
-from execute_query import execute_query
+from database_handler import execute_query
 
 app = Flask(__name__)
 @app.route('/stats_by_city')
@@ -19,21 +19,25 @@ def stats_by_city(genre):
         {% endfor %}'''
         return render_template_string(template, list_genres=list_genres)
 
-    query = f'''SELECT customers.Country, customers.City, COUNT(*) max
+    query = '''SELECT City, sales
+                FROM (
+                SELECT 
+                    customers.City, 
+                    COUNT(*) AS sales,
+                    RANK() OVER (ORDER BY COUNT(*) DESC) AS rank
                 FROM customers
                 JOIN invoices USING (CustomerId)
                 JOIN invoice_items USING (InvoiceId)
                 JOIN tracks USING (TrackId)
                 JOIN genres USING (GenreId)
-                WHERE genres.Name = '{genre}'
+                WHERE genres.Name = ?
                 GROUP BY customers.City
-                ORDER BY max DESC
-                LIMIT 1;'''
+                    )
+                WHERE rank = 1;'''
 
-    resp = execute_query(query)
+    resp = execute_query(query, (genre,))
 
-    return f'''<h1>The biggest like {genre} in {resp[0][1]} ({resp[0][0]}).<br>
-    More than {resp[0][2]} residents have already purchased it.</h1>''' if len(resp) > 0 else '<h1>No data available</h1>'
+    return resp if len(resp) > 0 else '<h1>No available data.</h1>'
 
 @app.route('/index')
 @app.route('/')
